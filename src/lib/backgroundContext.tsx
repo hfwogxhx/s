@@ -112,18 +112,15 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
     isInitializing.current = true;
 
     const initBackground = async () => {
-      // 首先尝试获取当前会话中的背景
+      // 关键优化：如果 sessionStorage 有背景URL，直接使用，不进行任何验证
+      // 这确保同一会话中页面导航时背景100%保持不变
       const sessionUrl = getSessionBackground();
       if (sessionUrl) {
-        const isValid = await preloadImage(sessionUrl);
-        if (isValid) {
-          setBackgroundUrl(sessionUrl);
-          return;
-        }
-        // 如果 session 中的背景加载失败,清除 session
-        setSessionBackground('');
+        setBackgroundUrl(sessionUrl);
+        return;
       }
 
+      // 只有首次访问（没有session）时才走下面的逻辑
       let finalUrl = '';
 
       // 尝试使用 localStorage 缓存
