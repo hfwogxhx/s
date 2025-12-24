@@ -11,12 +11,23 @@ const BackgroundContext = createContext<BackgroundContextType | undefined>(undef
 
 const BG_CACHE_KEY = 'app_background_cache';
 const BG_SESSION_KEY = 'app_background_session';
+const BG_GLOBAL_KEY = 'app_background_global';
 const BG_EXPIRE_TIME = 24 * 60 * 60 * 1000; // 24小时过期
 const BG_LOAD_TIMEOUT = 10000; // 10秒加载超时
 
 interface BackgroundCache {
   url: string;
   timestamp: number;
+}
+
+let globalBackgroundUrl: string | null = null;
+
+function getGlobalBackground(): string | null {
+  return globalBackgroundUrl;
+}
+
+function setGlobalBackground(url: string): void {
+  globalBackgroundUrl = url;
 }
 
 function getSessionBackground(): string | null {
@@ -104,26 +115,26 @@ async function preloadImage(url: string): Promise<boolean> {
 export function BackgroundProvider({ children }: { children: ReactNode }) {
   const [backgroundUrl, setBackgroundUrl] = useState<string>('');
   const [isLoaded, setIsLoaded] = useState(false);
-  const isInitializing = useRef(false);
 
   useEffect(() => {
-    // 防止重复初始化
-    if (isInitializing.current) return;
-    isInitializing.current = true;
-
     const initBackground = async () => {
-      // 关键优化：如果 sessionStorage 有背景URL，直接使用，不进行任何验证
-      // 这确保同一会话中页面导航时背景100%保持不变
-      const sessionUrl = getSessionBackground();
-      if (sessionUrl) {
-        setBackgroundUrl(sessionUrl);
+      // 第一优先级：检查全局变量（其他组件实例已加载过）
+      const globalUrl = getGlobalBackground();
+      if (globalUrl) {
+        setBackgroundUrl(globalUrl);
         return;
       }
 
-      // 只有首次访问（没有session）时才走下面的逻辑
-      let finalUrl = '';
+      // 第二优先级：检查 sessionStorage（同一会话）
+      const sessionUrl = getSessionBackground();
+      if (sessionUrl) {
+        setBackgroundUrl(sessionUrl);
+        setGlobalBackground(sessionUrl);
+        return;
+      }
 
-      // 尝试使用 localStorage 缓存
+      // 第三优先级：检查 localStorage 缓存
+      let finalUrl = '';
       const cached = getCachedBackground();
       if (cached) {
         const isValid = await preloadImage(cached);
@@ -134,7 +145,7 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 如果没有缓存或缓存失败,获取新图片
+      // 最后：获取新图片
       if (!finalUrl) {
         const newUrl = fetchNewBackground();
         const isValid = await preloadImage(newUrl);
@@ -144,9 +155,10 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 更新组件状态并保存到 session
+      // 更新所有层级
       if (finalUrl) {
         setBackgroundUrl(finalUrl);
+        setGlobalBackground(finalUrl);
         setSessionBackground(finalUrl);
       }
     };
@@ -164,6 +176,7 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
 
     if (isValid) {
       setBackgroundUrl(newUrl);
+      setGlobalBackground(newUrl);
       setSessionBackground(newUrl);
       setCachedBackground(newUrl);
       setIsLoaded(false);

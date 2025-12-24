@@ -30,6 +30,48 @@ const { title = '脸书小助手' } = Astro.props;
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>" />
     <title>{title}</title>
 
+    <!-- 全局背景初始化脚本 -->
+    <script is:inline>
+      (function() {
+        const BG_CACHE_KEY = 'app_background_cache';
+        const BG_SESSION_KEY = 'app_background_session';
+        const BG_EXPIRE_TIME = 24 * 60 * 60 * 1000;
+
+        function initGlobalBackground() {
+          try {
+            const sessionUrl = sessionStorage.getItem(BG_SESSION_KEY);
+            if (sessionUrl) {
+              return;
+            }
+
+            const cached = localStorage.getItem(BG_CACHE_KEY);
+            if (cached) {
+              try {
+                const data = JSON.parse(cached);
+                const now = Date.now();
+                if (now - data.timestamp <= BG_EXPIRE_TIME) {
+                  sessionStorage.setItem(BG_SESSION_KEY, data.url);
+                  return;
+                }
+              } catch (e) {}
+            }
+
+            const newUrl = `https://loliapi.com/acg/?${Date.now()}`;
+            sessionStorage.setItem(BG_SESSION_KEY, newUrl);
+            const cacheData = {
+              url: newUrl,
+              timestamp: Date.now()
+            };
+            localStorage.setItem(BG_CACHE_KEY, JSON.stringify(cacheData));
+          } catch (error) {
+            console.error('Background initialization error:', error);
+          }
+        }
+
+        initGlobalBackground();
+      })();
+    </script>
+
     <!-- 51.la 统计代码 -->
     <script is:inline>
       (function() {
